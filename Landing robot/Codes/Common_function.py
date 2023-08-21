@@ -193,10 +193,12 @@ def compute_optimized_paths_for_radius_updated_v3(ordered_points, radius_combina
     prev_chord_end = None
     final_wait_set = []
     for i, point in enumerate(ordered_points[:-1]):
-        current_radius = radius_combination[i % len(radius_combination)]
-        
+        # radius_combination = {}
+        print(f"radius_combination = {radius_combination}")
         # Exclude the start and end points from circles
         if 0 < i < len(ordered_points) - 2:
+            current_radius = radius_combination[i-1]
+            print(f"i = {i},point ={point},current_radius = {current_radius}")
             angle = angle_between_points(ordered_points[i-1], ordered_points[i])
             nextangle = angle_between_points(ordered_points[i], ordered_points[i+1])
             chord_start = point_on_circle(ordered_points[i], angle - np.pi, current_radius)
