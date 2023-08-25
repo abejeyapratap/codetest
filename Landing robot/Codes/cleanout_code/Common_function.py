@@ -171,7 +171,9 @@ def calculate_energy_remaining(Total_E_UGV, Total_E_UAV, UGV_outer_path_distance
         
         UAV_energy_remaining -= UAV_Trip_Cost 
         UGV_energy_remaining -= UGV_Trip_Cost
-        
+        if UGV_energy_remaining < 0 or UAV_energy_remaining < 0:
+            return -1, -1 
+            
         if UAV_energy_remaining < Total_E_UAV:
             charge_amount = min(Charging_speed * charging_distance , UAV_Trip_Cost, UGV_energy_remaining)
             UGV_energy_remaining -= charge_amount
