@@ -110,6 +110,15 @@ def compute_paths_for_radius(ordered_points, radius_combination, speed_ugv, spee
     
     return UGV_path, UAV_path, UGV_outer_path, UGV_inter_distances
 
+def calculate_UAV_inter_distances_inter(UAV_path):
+    UAV_inter_distances = 0
+    group_distance=0
+    # print(f"what I got in function:{UAV_path}")
+    for i in range(len(UAV_path) - 1):
+        group_distance += compute_distance(UAV_path[i], UAV_path[i + 1])
+    UAV_inter_distances=group_distance
+    # print(f"UAV_path:{UAV_path},UAV_inter_distances{UAV_inter_distances}")
+    return UAV_inter_distances
 
 
 
