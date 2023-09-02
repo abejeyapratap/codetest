@@ -2,6 +2,8 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from itertools import product
+import networkx as nx
+from collections import defaultdict
 
 def draw_circle(ax, center, radius):
     circle = plt.Circle(center, radius, fill=False, edgecolor='b', linewidth=1.5)
@@ -44,7 +46,7 @@ def find_meeting_point_with_survey_final(center,radius, ugv_start, ugv_end, spee
     - Meeting point of UGV and UAV.
     - Wait time for UGV (if any).
     """
-    
+    print(f"{ugv_end[0]} - {ugv_start[0]}")
     # Calculating the length of the chord
     chord_length = np.sqrt((ugv_end[0] - ugv_start[0])**2 + (ugv_end[1] - ugv_start[1])**2)
     
@@ -120,6 +122,64 @@ def calculate_UAV_inter_distances_inter(UAV_path):
     # print(f"UAV_path:{UAV_path},UAV_inter_distances{UAV_inter_distances}")
     return UAV_inter_distances
 
+def compute_path_for_one_point(ordered_points, point_index, radius, speed_ugv, speed_uav, survey_time):
+    if point_index <= 0 or point_index >= len(ordered_points) - 1:
+        raise ValueError("Invalid point index. It should be between 1 and len(ordered_points) - 2.")
+    
+    UGV_outer_path = []
+    UGV_path = []
+    UAV_path = []
+    UGVD_inter_without_drone = []
+    UGVD_inter_with_drone = []
+    chord_end = None
+    prev_chord_end = None
+    # final_wait_set = []
+    radius_set = []
+    final_wait_time = 0 
+    point = ordered_points[point_index]
+    
+    # Assuming angle_between_points and point_on_circle functions are defined previously
+    angle = angle_between_points(ordered_points[point_index - 1], ordered_points[point_index])
+    nextangle = angle_between_points(ordered_points[point_index], ordered_points[point_index + 1])
+    chord_start = point_on_circle(ordered_points[point_index], angle - np.pi, radius)
+    chord_end = point_on_circle(ordered_points[point_index], nextangle, radius)
+    radius_set.append(radius)
+    
+    if point_index > 1 and circles_overlap(ordered_points[point_index], radius, ordered_points[point_index - 1], radius):
+        chord_start = prev_chord_end
+ 
+    # Assuming find_meeting_point_with_survey_final function is defined previously
+    final_meeting_point, final_wait_time = find_meeting_point_with_survey_final(
+        ordered_points[point_index], radius, chord_start, chord_end, 
+        speed_ugv, speed_uav, survey_time
+    )
+    final_wait_time = final_wait_time
+    
+    if chord_start:
+        UAV_path_segment = [chord_start, point, final_meeting_point]
+        UAV_path.append(UAV_path_segment)
+        UGV_path.append(chord_start)
+
+        # Assuming calculate_UAV_inter_distances_inter function is defined previously
+        UAV_path_segment_distance = calculate_UAV_inter_distances_inter(UAV_path_segment)
+        if point_index == 1:
+            UGV_outer_path.append([ordered_points[0], chord_start])
+        else:
+            UGV_outer_path.append([prev_chord_end, chord_start])
+        # print(f"UGV_outer_path:{UGV_outer_path}")
+    if chord_end:
+        UGV_path.append(chord_end)
+
+    # Assuming compute_distance function is defined previously
+    inter_distance_without_drone = compute_distance(chord_start, final_meeting_point)
+    inter_distance_with_drone = compute_distance(final_meeting_point, chord_end)
+    UGVD_inter_without_drone.append(inter_distance_without_drone)
+    UGVD_inter_with_drone.append(inter_distance_with_drone)
+    
+    return radius_set, UGV_path, UAV_path, UAV_path_segment_distance,UGV_outer_path, UGVD_inter_without_drone, UGVD_inter_with_drone, final_wait_time
+
+# Note: This function assumes the existence of functions like angle_between_points, point_on_circle, 
+# find_meeting_point_with_survey_final, etc. which are not provided here. So, this function won't run as-is without those definitions.
 
 
 def compute_non_overlapping_pairwise_distances(path):
@@ -246,3 +306,91 @@ def compute_optimized_paths_for_radius_updated_v3(ordered_points, radius_combina
     UGV_path.append(ordered_points[-1])
     UGV_outer_path.append([chord_end,ordered_points[-1]])
     return UGV_path, UAV_path, UGV_outer_path, UGVD_inter_without_drone, UGVD_inter_with_drone,final_wait_set
+
+def draw_tree(root):
+    def add_edges(graph, node):
+        for child in node.children:
+            graph.add_edge(node.id, child.id)
+            add_edges(graph, child)
+
+    G = nx.DiGraph()
+    add_edges(G, root)
+
+    # Get all nodes and sort by level
+    all_nodes = sorted(root.get_nodes(), key=lambda node: node.level)
+
+    # Count nodes per level
+    level_counts = defaultdict(int)
+
+    # Assign positions
+    pos = {}
+    for node in all_nodes:
+        pos[node.id] = (level_counts[node.level], -node.level)
+        level_counts[node.level] += 1
+
+    # Adjust x-positions to center nodes on each level
+    for node in all_nodes:
+        x_adjust = -0.5 * (level_counts[node.level] - 1)
+        pos[node.id] = (pos[node.id][0] + x_adjust, pos[node.id][1])
+    
+    # Dynamic figure size
+    num_nodes = len(all_nodes)
+    num_levels = len(level_counts)
+    fig_width = max(10, num_nodes * 0.5)
+    fig_height = max(5, num_levels * 2)
+    plt.figure(figsize=(fig_width, fig_height))
+
+    # Nodes
+    nx.draw_networkx_nodes(G, pos, node_size=500)
+
+    # Edges
+    nx.draw_networkx_edges(G, pos, arrowstyle='->', arrowsize=15, width=2)
+
+    # Labels
+    nx.draw_networkx_labels(G, pos, font_size=12, font_family='sans-serif')
+
+    # Node data annotations
+    for node in all_nodes:
+        plt.annotate(
+            f'T:{node.total_time:.2f}',
+            xy=pos[node.id], textcoords='offset points', xytext=(-20,-30))
+
+    plt.show()
+    
+def find_min_total_time_node_at_level(root, target_level):
+    """
+    Find the node with minimum node.total_time among all nodes at a specific node.level 
+    and retrieve the path from that node back to the root.
+    
+    Parameters:
+    - root: The root node of the tree.
+    - target_level: The level at which we want to find the node with minimum total_time.
+    
+    Returns:
+    - result: A dictionary containing the node's id, total_time, and the path from that node back to the root.
+    """
+    nodes_at_target_level = [node for node in root.get_nodes() if node.level == target_level]
+    
+    if not nodes_at_target_level:
+        return None  # No nodes found at the target level
+    
+    # Find the node with the minimum total_time at the target level
+    min_total_time_node = min(nodes_at_target_level, key=lambda node: node.total_time)
+    
+    # Retrieve the path from that node back to the root
+    path = []
+    current_node = min_total_time_node
+    while current_node is not None:
+        path.append(current_node.radius)
+        current_node = current_node.parent
+    path.reverse()  # Reverse the path to start from the root
+    
+    # Construct the result dictionary
+    result = {
+        "id": min_total_time_node.id,
+        "value":min_total_time_node.value,
+        "total_time": min_total_time_node.total_time,
+        "radius comb": path
+    }
+    
+    return result
