@@ -46,7 +46,8 @@ def find_meeting_point_with_survey_final(center,radius, ugv_start, ugv_end, spee
     - Meeting point of UGV and UAV.
     - Wait time for UGV (if any).
     """
-    print(f"{ugv_end[0]} - {ugv_start[0]}")
+    # print(f"In Find Meeting-----------------------{ugv_start,ugv_end}-------------------------------------------")
+    # print(f"{ugv_end[0]} - {ugv_start[0]}")
     # Calculating the length of the chord
     chord_length = np.sqrt((ugv_end[0] - ugv_start[0])**2 + (ugv_end[1] - ugv_start[1])**2)
     
@@ -143,6 +144,7 @@ def compute_path_for_one_point(ordered_points, point_index, radius, speed_ugv, s
     nextangle = angle_between_points(ordered_points[point_index], ordered_points[point_index + 1])
     chord_start = point_on_circle(ordered_points[point_index], angle - np.pi, radius)
     chord_end = point_on_circle(ordered_points[point_index], nextangle, radius)
+    prev_chord_end = point_on_circle(ordered_points[point_index - 1],angle,radius)
     radius_set.append(radius)
     
     if point_index > 1 and circles_overlap(ordered_points[point_index], radius, ordered_points[point_index - 1], radius):
@@ -261,23 +263,26 @@ def compute_optimized_paths_for_radius_updated_v3(ordered_points, radius_combina
     UGVD_inter_without_drone = []
     UGVD_inter_with_drone = []
     chord_end = None
-    prev_chord_end = None
+    # prev_chord_end = None
     final_wait_set = []
     for i, point in enumerate(ordered_points[:-1]):
         # radius_combination = {}
-        print(f"radius_combination = {radius_combination}")
+        # print(f"radius_combination = {radius_combination}")
         # Exclude the start and end points from circles
         if 0 < i < len(ordered_points) - 2:
             current_radius = radius_combination[i-1]
-            print(f"i = {i},point ={point},current_radius = {current_radius}")
+            # print(f"i = {i},point ={point},current_radius = {current_radius}")
             angle = angle_between_points(ordered_points[i-1], ordered_points[i])
             nextangle = angle_between_points(ordered_points[i], ordered_points[i+1])
             chord_start = point_on_circle(ordered_points[i], angle - np.pi, current_radius)
+
             chord_end = point_on_circle(ordered_points[i], nextangle, current_radius)
-            
+            prev_chord_end = point_on_circle(ordered_points[i - 1],angle,current_radius)
+
             if prev_chord_end and i > 1 and circles_overlap(ordered_points[i], current_radius, ordered_points[i-1], radius_combination[(i-1) % len(radius_combination)]):
                 chord_start = prev_chord_end
-
+                # print("yes, did overlaped",chord_start)
+            # print(f"-----------------------{chord_start,chord_end}-------------------------------------------")
             final_meeting_point, final_wait_time = find_meeting_point_with_survey_final(
                 ordered_points[i], current_radius, chord_start, chord_end, 
                 speed_ugv, speed_uav, survey_time
