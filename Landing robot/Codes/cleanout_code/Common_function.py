@@ -256,62 +256,6 @@ def calculate_energy_remaining(Total_E_UGV, Total_E_UAV, UGV_outer_path_distance
     return UGV_energy_remaining, UAV_energy_remaining
 
 
-def compute_optimized_paths_for_radius_updated_v3(ordered_points, radius_combination, speed_ugv, speed_uav, survey_time):
-    UGV_outer_path = []
-    UGV_path = [ordered_points[0]]
-    UAV_path = []
-    UGVD_inter_without_drone = []
-    UGVD_inter_with_drone = []
-    chord_end = None
-    # prev_chord_end = None
-    final_wait_set = []
-    for i, point in enumerate(ordered_points[:-1]):
-        # radius_combination = {}
-        # print(f"radius_combination = {radius_combination}")
-        # Exclude the start and end points from circles
-        if 0 < i < len(ordered_points) - 2:
-            current_radius = radius_combination[i-1]
-            # print(f"i = {i},point ={point},current_radius = {current_radius}")
-            angle = angle_between_points(ordered_points[i-1], ordered_points[i])
-            nextangle = angle_between_points(ordered_points[i], ordered_points[i+1])
-            chord_start = point_on_circle(ordered_points[i], angle - np.pi, current_radius)
-
-            chord_end = point_on_circle(ordered_points[i], nextangle, current_radius)
-            prev_chord_end = point_on_circle(ordered_points[i - 1],angle,current_radius)
-
-            if prev_chord_end and i > 1 and circles_overlap(ordered_points[i], current_radius, ordered_points[i-1], radius_combination[(i-1) % len(radius_combination)]):
-                chord_start = prev_chord_end
-                # print("yes, did overlaped",chord_start)
-            # print(f"-----------------------{chord_start,chord_end}-------------------------------------------")
-            final_meeting_point, final_wait_time = find_meeting_point_with_survey_final(
-                ordered_points[i], current_radius, chord_start, chord_end, 
-                speed_ugv, speed_uav, survey_time
-            )
-            final_wait_set.append(final_wait_time)
-            # Update paths based on the provided structure
-            if chord_start:
-                UAV_path.append([chord_start, point, final_meeting_point])
-                UGV_path.append(chord_start)
-                
-                # Update UGV_outer_path as per the new structure
-                if i == 1:
-                    UGV_outer_path.append([ordered_points[0], chord_start])
-                else:
-                    UGV_outer_path.append([prev_chord_end, chord_start])
-                
-            if chord_end:
-                UGV_path.append(chord_end)
-                
-            UGVD_inter_without_drone.append(compute_distance(chord_start, final_meeting_point))
-            UGVD_inter_with_drone.append(compute_distance(final_meeting_point, chord_end))
-            
-            prev_chord_end = chord_end
-            
-    # Adding the last point to the paths
-    UGV_path.append(ordered_points[-1])
-    UGV_outer_path.append([chord_end,ordered_points[-1]])
-    return UGV_path, UAV_path, UGV_outer_path, UGVD_inter_without_drone, UGVD_inter_with_drone,final_wait_set
-
 def draw_tree(root):
     def add_edges(graph, node):
         for child in node.children:
@@ -399,3 +343,128 @@ def find_min_total_time_node_at_level(root, target_level):
     }
     
     return result
+
+def compute_optimized_paths_for_radius(ordered_points, radius_combination, speed_ugv, speed_uav, survey_time):
+    UGV_outer_path = []
+    UGV_path = [ordered_points[0]]
+    UAV_path = []
+    UGVD_inter_without_drone = []
+    UGVD_inter_with_drone = []
+    chord_end = None
+    prev_chord_end = None
+    final_wait_set = []
+    radius_set = []
+    for i, point in enumerate(ordered_points[:-1]):
+        # radius_combination
+        
+        # print(radius_combination,i % len(radius_combination) )
+        # print(i, point)
+        
+       
+        # Exclude the start and end points from circles
+        if 0 < i < len(ordered_points) - 2:
+            current_radius = radius_combination[i-1]
+            # print(i)
+            angle = angle_between_points(ordered_points[i-1], ordered_points[i])
+            nextangle = angle_between_points(ordered_points[i], ordered_points[i+1])
+            chord_start = point_on_circle(ordered_points[i], angle - np.pi, current_radius)
+            chord_end = point_on_circle(ordered_points[i], nextangle, current_radius)
+            radius_set.append(current_radius)
+            if prev_chord_end and i > 1 and circles_overlap(ordered_points[i], current_radius, ordered_points[i-1], radius_combination[(i-1) % len(radius_combination)]):
+                chord_start = prev_chord_end
+
+            final_meeting_point, final_wait_time = find_meeting_point_with_survey_final(
+                ordered_points[i], current_radius, chord_start, chord_end, 
+                speed_ugv, speed_uav, survey_time
+            )
+            final_wait_set.append(final_wait_time)
+            # Update paths based on the provided structure
+            if chord_start:
+                UAV_path_segment = [chord_start, point, final_meeting_point]
+                UAV_path.append(UAV_path_segment)
+                UGV_path.append(chord_start)
+                UAV_path_segment_distance = calculate_UAV_inter_distances_inter(UAV_path_segment)
+                # Update UGV_outer_path as per the new structure
+                if i == 1:
+                    UGV_outer_path.append([ordered_points[0], chord_start])
+                else:
+                    UGV_outer_path.append([prev_chord_end, chord_start])
+                
+                    
+                
+            if chord_end:
+                UGV_path.append(chord_end)
+            inter_distance_without_drone = compute_distance(chord_start, final_meeting_point)
+            inter_distance_with_drone = compute_distance(final_meeting_point, chord_end)
+            UGVD_inter_without_drone.append(inter_distance_without_drone)
+            UGVD_inter_with_drone.append(inter_distance_with_drone)
+            prev_chord_end = chord_end
+
+            
+            # print(UAV_path_segment_distance)
+            # print ( UGV_outer_path_distances, inter_distance_with_drone, UAV_distances_set, UAV_path_segment, UAV_E_cost, UAV_E_s_cost, UGVD_inter_without_drone, UGV_E_cost_without_UAV, Charging_speed)
+            # UGV_energy_remaining, UAV_energy_remaining = calculate_energy_remaining_inter(Total_E_UGV, Total_E_UAV, UGV_outer_path_distances, UGVD_inter_with_drone, UAV_distances_set, UAV_path, UAV_E_cost, UAV_E_s_cost, UGVD_inter_without_drone, UGV_E_cost_without_UAV, Charging_speed)
+
+    # Adding the last point to the paths
+    UGV_path.append(ordered_points[-1])
+    UGV_outer_path.append([chord_end,ordered_points[-1]])
+    
+    return radius_set ,UGV_path, UAV_path, UGV_outer_path, UGVD_inter_without_drone, UGVD_inter_with_drone,final_wait_set
+
+from matplotlib.patches import FancyArrowPatch
+def plot_updated_paths_with_circles(UAV_path, UGV_outer_path, ordered_points, result):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    time= result[1]
+    radius_combination = result[0]
+    # # Plot UAV_path
+    # for segment in UAV_path:
+    #     # print(segment[0],segment[-1])
+    #     ax.plot(*zip(segment[0],segment[-1]),'r--',label='UGV_alone')
+        
+    #     ax.plot(*zip(*segment), 'g--', label='UAV Path')
+    #     # ax.scatter(*zip(*segment), color='g', marker='o')
+    
+    # # Plot UGV_outer_path without connecting segments to each other
+    # for segment in UGV_outer_path:
+    #     ax.plot(*zip(*segment), 'b-', label='UGV Outer Path')
+
+        # ax.scatter(segment[0][0], segment[0][1], color='b', marker='x')  # Plotting start of the segment
+        # ax.scatter(segment[1][0], segment[1][1], color='b', marker='x')  # Plotting end of the segment
+    for index, segment in enumerate(UAV_path):
+    # Plot for UAV_path
+        ax.plot(*zip(segment[0], segment[-1]), 'r--', label='UGV_alone')
+        ax.plot(*zip(*segment), 'g--', label='UAV Path')
+        ax.scatter(*segment[-1], s=20, marker='o', facecolors='none', edgecolors='r', label='meeting_point')  # Plotting end of the segment
+        ax.plot(*zip(segment[-1],UGV_outer_path[index+1][0]), 'm-', label='UGV_with_UGV')
+        # Plot for UGV_outer_path
+        # ax.plot(*zip(*UGV_outer_path[index]), 'b-', label='UGV Outer Path')
+        line = ax.plot(*zip(*UGV_outer_path[index]), 'b-', label='UGV Outer Path')
+        start_point = UGV_outer_path[index][0]
+        end_point = UGV_outer_path[index][-1]
+        arrow = FancyArrowPatch(posA=start_point, posB=end_point, mutation_scale=15, arrowstyle="-|>", color="b")
+        ax.add_patch(arrow)
+    # Since UGV_outer_path has one more segment, plot the last segment of UGV_outer_path separately
+    ax.plot(*zip(*UGV_outer_path[-1]), 'b-', label='UGV Outer Path')
+    # Draw circles
+    for i, point in enumerate(ordered_points[:-1]):
+        
+        if 0 < i < len(ordered_points) - 2:
+            
+            current_radius = radius_combination[i-1]
+            ax.annotate(f"R = {current_radius:.1f}", (point[0] + 0.2, point[1] + 0.2))
+            draw_circle(ax, point, current_radius, color='b', linestyle='-')
+        
+    ax.scatter(*ordered_points[0], color='b', marker='x',label='Start')  # Plotting start of the segment 
+    # Labels and Title
+    ax.set_title(f"UAV and UGV Optomized Path, Total_T = {result[1]} h ")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True)
+    
+    # Handling legends to avoid repetition
+    handles, labels = ax.get_legend_handles_labels()
+    unique_labels = list(dict.fromkeys(labels))
+    unique_handles = [handles[labels.index(lab)] for lab in unique_labels]
+    ax.legend(unique_handles, unique_labels, loc="best")
+    ax.set_aspect('equal', adjustable='box')
+    plt.show()
